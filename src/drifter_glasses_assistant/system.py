@@ -1,7 +1,7 @@
 from __future__ import annotations
 
 from dataclasses import asdict
-from datetime import datetime
+from datetime import UTC, datetime
 from typing import Any, Dict, Optional
 
 from src.data_logging.logger import DataLogger
@@ -39,7 +39,7 @@ class DrifterGlassesAssistant:
 
     def start_operation(self, session_id: Optional[str] = None) -> str:
         """Start a glasses operation session."""
-        sid = session_id or f"op-{datetime.utcnow().strftime('%Y%m%d-%H%M%S')}"
+        sid = session_id or f"op-{datetime.now(UTC).strftime('%Y%m%d-%H%M%S')}"
         self.session_id = sid
         if self.data_logger:
             self.data_logger.start_session(session_id=sid, driver_id=self.driver_id)
@@ -386,7 +386,7 @@ class DrifterGlassesAssistant:
 
     def _mock_threat_assessment(self, threat_bias: int = 0) -> str:
         # Lightweight deterministic mock for a no-dependency baseline.
-        minute = datetime.utcnow().minute
+        minute = datetime.now(UTC).minute
         score = (minute % 10) + threat_bias
         if score <= 2:
             return "low"

@@ -33,7 +33,12 @@ This repository now includes a Honolulu-tailored, operations-focused assistant s
 - `src/drifter_glasses_assistant/config.py` - runtime config defaults
 - `src/drifter_glasses_assistant/models.py` - core datatypes
 - `src/drifter_glasses_assistant/cli.py` - local interactive console demo
+- `src/meta_rayban_bridge/phone_relay_api.py` - phone relay HTTP API
+- `src/meta_rayban_bridge/bridge.py` - bridge runtime wiring
+- `src/meta_rayban_bridge/adapters.py` - voice/GPS/camera adapters
+- `src/meta_rayban_bridge/batcomputer_voice.py` - Batcomputer voice formatting layer
 - `tests/test_drifter_glasses_assistant.py` - baseline tests
+- `tests/test_meta_rayban_bridge.py` - bridge and relay tests
 
 ## Quick start
 
@@ -102,6 +107,59 @@ Profile effects:
 - **Scan output** includes profile-specific focus areas
 - **Navigation ETA** applies profile multiplier to local baseline ETAs
 - **Threat assessment** uses profile bias
+
+## Meta Ray-Ban bridge layer
+
+Bridge package: `src/meta_rayban_bridge/`
+
+Implemented adapters:
+- **Voice input adapter**: routes phone transcripts to core assistant and returns:
+  - original structured response
+  - `spoken_batcomputer` voice line
+  - SSML hint and `voice_id`
+- **GPS event adapter**: ingests live latitude/longitude/speed/heading telemetry.
+  - when speed is high, it triggers proactive status refresh
+- **Camera event adapter**: ingests scene metadata and confidence.
+  - triggers proactive scan on high-confidence hazard-like scenes
+- **Phone relay API**:
+  - `POST /v1/voice`
+  - `POST /v1/gps`
+  - `POST /v1/camera`
+  - `GET /v1/status`
+
+### Run relay API
+
+```bash
+python3 -m src.meta_rayban_bridge.phone_relay_api
+```
+
+Example requests:
+
+```bash
+curl -s -X POST http://127.0.0.1:8787/v1/voice \
+  -H "Content-Type: application/json" \
+  -d '{"transcript":"status"}'
+```
+
+```bash
+curl -s -X POST http://127.0.0.1:8787/v1/gps \
+  -H "Content-Type: application/json" \
+  -d '{"latitude":21.3069,"longitude":-157.8583,"speed_mps":20.0,"heading_deg":145.0}'
+```
+
+```bash
+curl -s -X POST http://127.0.0.1:8787/v1/camera \
+  -H "Content-Type: application/json" \
+  -d '{"scene":"traffic incident near ala moana","confidence":0.91,"labels":{"traffic":0.91}}'
+```
+
+### Batcomputer voice
+
+Batcomputer voicing is handled by `BatcomputerVoiceStyler`:
+- tactical prefixes (Operator/Acknowledged/Warning)
+- phrase normalization (`Route locked` -> `Route confirmed`)
+- SSML-like hint output for TTS engines
+- default voice id: `batcomputer-honolulu-v1`
 
 ## Integrating with a model backend
 
