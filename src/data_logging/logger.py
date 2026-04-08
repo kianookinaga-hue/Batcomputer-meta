@@ -12,7 +12,7 @@ from pathlib import Path
 
 logger = logging.getLogger(__name__)
 
-dataclass
+@dataclass
 class OperationLog:
     """Single operation log entry"""
     operation_id: str
@@ -164,7 +164,7 @@ class DataLogger:
             backup_path = self.log_dir / f"backup_{session_id}.json"
             
             with open(backup_path, "w") as f:
-                json.dump([asdict(l, default=str) for l in logs], f, indent=2)
+                json.dump([asdict(l) for l in logs], f, indent=2, default=str)
             
             logger.info(f"Session backed up: {backup_path}")
         except Exception as e:
