@@ -30,7 +30,10 @@ def _build_assistant(with_logger: bool = True) -> DrifterGlassesAssistant:
 def run_console(with_logger: bool = True) -> None:
     assistant = _build_assistant(with_logger=with_logger)
     print("== DRIFTER GLASSES CONSOLE ==")
-    print("Type commands, 'prompt', 'objective <text>', 'mode <name>', or 'exit'.")
+    print(
+        "Type commands, 'prompt', 'profiles', 'profile <name>', "
+        "'objective <text>', 'mode <name>', or 'exit'."
+    )
 
     while True:
         command = input("> ").strip()

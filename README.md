@@ -21,6 +21,10 @@ This repository now includes a Honolulu-tailored, operations-focused assistant s
 - **Console simulation** to run the system locally.
 - **Integration** with the existing `DataLogger`.
 - **Honolulu context defaults** including local waypoint aliases and ETA profiles.
+- **Island profile packs** with live switching:
+  - Waikiki Nightlife
+  - Windward Daytime
+  - North Shore Weather Watch
 
 ## Files
 
@@ -45,6 +49,9 @@ Example commands:
 - `scan waikiki sector`
 - `navigate to ala moana`
 - `navigate to hnl`
+- `profiles`
+- `profile windward daytime`
+- `profile north shore weather watch`
 - `mode stealth`
 - `objective monitor Waikiki Beach corridor`
 - `prompt` (prints current model system prompt)
@@ -68,6 +75,33 @@ Example commands:
   - `manoa`
 
 This means commands like `navigate to harbor checkpoint` will normalize to `Honolulu Harbor` and return a local ETA.
+
+## Island profile packs
+
+The assistant now supports profile packs that tune operations behavior:
+
+- `waikiki-nightlife`
+  - crowd-heavy evening assumptions
+  - higher congestion ETA multiplier
+  - slight threat bias increase
+- `windward-daytime`
+  - daytime neighborhood and school-zone focus
+  - mild ETA increase
+  - slight threat bias reduction
+- `north-shore-weather-watch`
+  - weather and visibility hazard focus
+  - highest ETA multiplier
+  - elevated threat bias
+
+Runtime commands:
+- `profiles` (list available profile packs)
+- `profile <name>` (switch profile, e.g. `profile windward daytime`)
+- `status` now reports active profile
+
+Profile effects:
+- **Scan output** includes profile-specific focus areas
+- **Navigation ETA** applies profile multiplier to local baseline ETAs
+- **Threat assessment** uses profile bias
 
 ## Integrating with a model backend
 

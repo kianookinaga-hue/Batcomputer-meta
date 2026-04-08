@@ -6,7 +6,7 @@ from typing import Any, Dict, Optional
 
 from src.data_logging.logger import DataLogger
 
-from .config import DrifterAssistantConfig
+from .config import DrifterAssistantConfig, OperationProfilePack
 from .models import AssistantResponse, OperationMode
 
 
@@ -32,6 +32,10 @@ class DrifterGlassesAssistant:
         self.session_id: Optional[str] = None
         self.driver_id: str = self.config.operator_name
         self.objective: str = self.config.default_objective
+        resolved_default = self._resolve_profile_id(self.config.default_profile)
+        self.active_profile_id: str = resolved_default or sorted(
+            self.config.profile_packs.keys()
+        )[0]
 
     def start_operation(self, session_id: Optional[str] = None) -> str:
         """Start a glasses operation session."""
@@ -67,6 +71,75 @@ class DrifterGlassesAssistant:
         self._log("mode_change", {"mode": mode.value, "response": asdict(response)})
         return response
 
+    def set_profile(self, profile_name: str) -> AssistantResponse:
+        """Switch island profile pack."""
+        profile_id = self._resolve_profile_id(profile_name)
+        if not profile_id:
+            available = sorted(self.config.profile_packs.keys())
+            response = AssistantResponse(
+                spoken=(
+                    "Profile not recognized. Say profiles to list available profile packs."
+                ),
+                hud="[PROFILE] Unknown profile",
+                priority=2,
+                actions=["profile_unknown"],
+                context={"requested_profile": profile_name, "available_profiles": available},
+            )
+            self._log(
+                "profile_unknown",
+                {"requested_profile": profile_name, "available_profiles": available},
+            )
+            return response
+
+        profile = self.config.profile_packs[profile_id]
+        self.active_profile_id = profile_id
+        response = AssistantResponse(
+            spoken=(
+                f"Profile switched to {profile.display_name}. "
+                f"Recommended mode {profile.recommended_mode}."
+            ),
+            hud=f"[PROFILE] {profile.display_name}",
+            priority=2,
+            actions=["profile_switch"],
+            context={
+                "profile_id": profile_id,
+                "scan_focus": profile.scan_focus,
+                "recommended_mode": profile.recommended_mode,
+            },
+        )
+        self._log(
+            "profile_change",
+            {
+                "profile_id": profile_id,
+                "profile_name": profile.display_name,
+                "response": asdict(response),
+            },
+        )
+        return response
+
+    def list_profiles(self) -> AssistantResponse:
+        """List available profile packs."""
+        profiles = self.config.profile_packs
+        ordered = sorted(profiles.items(), key=lambda item: item[0])
+        lines = [f"{name}: {pack.display_name}" for name, pack in ordered]
+        active = profiles[self.active_profile_id].display_name
+        response = AssistantResponse(
+            spoken=(
+                f"Available profiles ready. Active profile is {active}. "
+                "Check HUD for full list."
+            ),
+            hud="[PROFILES] " + " | ".join(lines),
+            actions=["profile_list"],
+            context={
+                "active_profile_id": self.active_profile_id,
+                "profiles": {
+                    name: asdict(pack) for name, pack in ordered
+                },
+            },
+        )
+        self._log("profile_list", {"active_profile_id": self.active_profile_id})
+        return response
+
     def handle_voice_command(self, command: str) -> AssistantResponse:
         """Parse and respond to operator commands."""
         text = command.strip()
@@ -90,6 +163,14 @@ class DrifterGlassesAssistant:
             maybe_mode = self._extract_mode(lowered)
             if maybe_mode:
                 return self.set_mode(maybe_mode)
+
+        if self._is_profile_list_request(lowered):
+            return self.list_profiles()
+
+        if "profile" in lowered:
+            profile_name = self._extract_profile_name(text)
+            if profile_name:
+                return self.set_profile(profile_name)
 
         if any(word in lowered for word in ("objective", "mission")):
             return self._respond_objective()
@@ -141,17 +222,30 @@ class DrifterGlassesAssistant:
         return response
 
     def _respond_scan(self) -> AssistantResponse:
-        threat_level = self._mock_threat_assessment()
+        profile = self._active_profile()
+        threat_level = self._mock_threat_assessment(profile.threat_bias)
         response = AssistantResponse(
             spoken=(
                 f"Scanning sector. Threat level {threat_level}. "
-                "No immediate hostile signatures."
+                f"Focus: {profile.scan_focus}."
             ),
             hud=f"[SCAN] threat={threat_level} | lanes clear",
             actions=["camera_scan", "audio_filter", "thermal_check"],
-            context={"threat_level": threat_level, "mode": self.mode.value},
+            context={
+                "threat_level": threat_level,
+                "mode": self.mode.value,
+                "profile_id": self.active_profile_id,
+                "scan_focus": profile.scan_focus,
+            },
         )
-        self._log("scan", {"threat_level": threat_level})
+        self._log(
+            "scan",
+            {
+                "threat_level": threat_level,
+                "profile_id": self.active_profile_id,
+                "scan_focus": profile.scan_focus,
+            },
+        )
         return response
 
     def _respond_navigation(self, lowered_command: str) -> AssistantResponse:
@@ -159,32 +253,63 @@ class DrifterGlassesAssistant:
         if "to " in lowered_command:
             destination = lowered_command.split("to ", 1)[1].strip() or destination
         destination = self._normalize_destination(destination)
-        eta = self.config.local_waypoint_eta.get(destination, "11m")
+        baseline_eta = self.config.local_waypoint_eta.get(destination, "11m")
+        profile = self._active_profile()
+        eta = self._apply_eta_multiplier(baseline_eta, profile.eta_multiplier)
         response = AssistantResponse(
             spoken=f"Route locked to {destination}. Estimated arrival {eta}.",
             hud=f"[NAV] {destination} | ETA {eta}",
             actions=["plot_route", "hazard_overlay"],
-            context={"destination": destination, "eta": eta},
+            context={
+                "destination": destination,
+                "eta": eta,
+                "baseline_eta": baseline_eta,
+                "profile_id": self.active_profile_id,
+                "eta_multiplier": profile.eta_multiplier,
+            },
         )
-        self._log("navigation", {"destination": destination, "eta": eta})
+        self._log(
+            "navigation",
+            {
+                "destination": destination,
+                "eta": eta,
+                "baseline_eta": baseline_eta,
+                "profile_id": self.active_profile_id,
+                "eta_multiplier": profile.eta_multiplier,
+            },
+        )
         return response
 
     def _respond_status(self) -> AssistantResponse:
+        profile = self._active_profile()
         response = AssistantResponse(
             spoken=(
                 f"Mode {self.mode.value}. Session "
                 f"{self.session_id or 'not started'}. "
-                f"Monitoring {self.config.city_name} corridors."
+                f"Monitoring {self.config.city_name} corridors on "
+                f"{profile.display_name} profile."
             ),
-            hud=f"[STATUS] mode={self.mode.value} | session={self.session_id or 'idle'}",
+            hud=(
+                f"[STATUS] mode={self.mode.value} | session={self.session_id or 'idle'} | "
+                f"profile={self.active_profile_id}"
+            ),
             actions=["status_report"],
             context={
                 "mode": self.mode.value,
                 "session_id": self.session_id,
                 "city": self.config.city_name,
+                "profile_id": self.active_profile_id,
+                "profile_name": profile.display_name,
             },
         )
-        self._log("status", {"mode": self.mode.value, "session_id": self.session_id})
+        self._log(
+            "status",
+            {
+                "mode": self.mode.value,
+                "session_id": self.session_id,
+                "profile_id": self.active_profile_id,
+            },
+        )
         return response
 
     def _respond_comms(self, lowered_command: str) -> AssistantResponse:
@@ -212,6 +337,37 @@ class DrifterGlassesAssistant:
                 return term
         return None
 
+    def _is_profile_list_request(self, lowered_command: str) -> bool:
+        return lowered_command in {
+            "profiles",
+            "list profiles",
+            "show profiles",
+            "profile list",
+            "list profile packs",
+        }
+
+    def _extract_profile_name(self, command: str) -> Optional[str]:
+        lowered = command.lower().strip()
+        if lowered.startswith("profile "):
+            return command.split(" ", 1)[1].strip()
+        if "set profile " in lowered:
+            return command[lowered.index("set profile ") + len("set profile "):].strip()
+        if "use profile " in lowered:
+            return command[lowered.index("use profile ") + len("use profile "):].strip()
+        return None
+
+    def _resolve_profile_id(self, profile_name: str) -> Optional[str]:
+        lowered = profile_name.lower().strip()
+        if lowered in self.config.profile_packs:
+            return lowered
+        alias = self.config.profile_aliases.get(lowered)
+        if alias in self.config.profile_packs:
+            return alias
+        return None
+
+    def _active_profile(self) -> OperationProfilePack:
+        return self.config.profile_packs[self.active_profile_id]
+
     def _normalize_destination(self, destination: str) -> str:
         lowered = destination.lower()
         aliases = self.config.local_waypoint_aliases
@@ -220,10 +376,18 @@ class DrifterGlassesAssistant:
                 return value
         return destination
 
-    def _mock_threat_assessment(self) -> str:
+    def _apply_eta_multiplier(self, eta: str, multiplier: float) -> str:
+        try:
+            minutes = int(eta.replace("m", "").strip())
+        except ValueError:
+            return eta
+        adjusted = max(1, round(minutes * multiplier))
+        return f"{adjusted}m"
+
+    def _mock_threat_assessment(self, threat_bias: int = 0) -> str:
         # Lightweight deterministic mock for a no-dependency baseline.
         minute = datetime.utcnow().minute
-        score = minute % 10
+        score = (minute % 10) + threat_bias
         if score <= 2:
             return "low"
         if score <= 6:

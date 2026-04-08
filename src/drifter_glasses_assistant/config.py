@@ -2,6 +2,18 @@ from dataclasses import dataclass, field
 from typing import Dict, List
 
 
+@dataclass(frozen=True)
+class OperationProfilePack:
+    """Island profile settings that tune routing and scanning behavior."""
+
+    display_name: str
+    description: str
+    scan_focus: str
+    eta_multiplier: float
+    threat_bias: int
+    recommended_mode: str
+
+
 @dataclass
 class DrifterAssistantConfig:
     """
@@ -18,6 +30,7 @@ class DrifterAssistantConfig:
     enable_logging: bool = True
     max_response_words: int = 40
     default_objective: str = "Maintain safety awareness across Honolulu corridors."
+    default_profile: str = "waikiki-nightlife"
     local_waypoint_aliases: Dict[str, str] = field(
         default_factory=lambda: {
             "waikiki": "Waikiki",
@@ -44,6 +57,47 @@ class DrifterAssistantConfig:
             "Daniel K. Inouye International Airport": "18m",
             "Diamond Head": "14m",
             "Manoa Valley": "16m",
+        }
+    )
+    profile_aliases: Dict[str, str] = field(
+        default_factory=lambda: {
+            "waikiki-nightlife": "waikiki-nightlife",
+            "waikiki nightlife": "waikiki-nightlife",
+            "waikiki": "waikiki-nightlife",
+            "windward-daytime": "windward-daytime",
+            "windward daytime": "windward-daytime",
+            "windward": "windward-daytime",
+            "north-shore-weather-watch": "north-shore-weather-watch",
+            "north shore weather watch": "north-shore-weather-watch",
+            "north shore": "north-shore-weather-watch",
+        }
+    )
+    profile_packs: Dict[str, OperationProfilePack] = field(
+        default_factory=lambda: {
+            "waikiki-nightlife": OperationProfilePack(
+                display_name="Waikiki Nightlife",
+                description="Crowd-dense evening profile tuned for nightlife corridors.",
+                scan_focus="crosswalk flow, rideshare choke points, nightlife crowd density",
+                eta_multiplier=1.20,
+                threat_bias=1,
+                recommended_mode="stealth",
+            ),
+            "windward-daytime": OperationProfilePack(
+                display_name="Windward Daytime",
+                description="Daylight profile for calmer neighborhoods and school zones.",
+                scan_focus="pedestrian safety, school-zone speed, rain-slick road surfaces",
+                eta_multiplier=1.05,
+                threat_bias=-1,
+                recommended_mode="recon",
+            ),
+            "north-shore-weather-watch": OperationProfilePack(
+                display_name="North Shore Weather Watch",
+                description="Weather-heavy profile for highway visibility and surf traffic.",
+                scan_focus="flooding risk, wind gust lanes, visibility and road shoulder hazards",
+                eta_multiplier=1.30,
+                threat_bias=1,
+                recommended_mode="analysis",
+            ),
         }
     )
     blocked_terms: List[str] = field(

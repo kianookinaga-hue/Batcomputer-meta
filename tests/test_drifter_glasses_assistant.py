@@ -36,12 +36,47 @@ class TestDrifterGlassesAssistant(unittest.TestCase):
         self.assertIn("honolulu harbor", response.hud.lower())
         self.assertIn("plot_route", response.actions)
 
+    def test_profiles_are_listed(self):
+        assistant = DrifterGlassesAssistant(
+            config=DrifterAssistantConfig(enable_logging=False)
+        )
+        response = assistant.handle_voice_command("profiles")
+        self.assertIn("waikiki-nightlife", response.hud)
+        self.assertIn("windward-daytime", response.hud)
+        self.assertEqual(response.actions, ["profile_list"])
+
+    def test_profile_switch_to_windward(self):
+        assistant = DrifterGlassesAssistant(
+            config=DrifterAssistantConfig(enable_logging=False)
+        )
+        response = assistant.handle_voice_command("profile windward daytime")
+        self.assertEqual(assistant.active_profile_id, "windward-daytime")
+        self.assertEqual(response.actions, ["profile_switch"])
+        self.assertIn("Windward Daytime", response.hud)
+
+    def test_unknown_profile_returns_guidance(self):
+        assistant = DrifterGlassesAssistant(
+            config=DrifterAssistantConfig(enable_logging=False)
+        )
+        response = assistant.handle_voice_command("profile moon-base")
+        self.assertEqual(response.actions, ["profile_unknown"])
+        self.assertIn("unknown profile", response.hud.lower())
+
+    def test_profile_changes_eta_multiplier(self):
+        assistant = DrifterGlassesAssistant(
+            config=DrifterAssistantConfig(enable_logging=False)
+        )
+        response = assistant.handle_voice_command("navigate to ala moana")
+        # Base eta is 6m, Waikiki Nightlife multiplier is 1.20 => 7m
+        self.assertIn("ETA 7m", response.hud)
+
     def test_prompt_contains_guardrails(self):
         config = DrifterAssistantConfig()
         prompt = build_system_prompt(config, OperationMode.RECON)
         self.assertIn("Do not provide illegal", prompt)
         self.assertIn(config.codename, prompt)
         self.assertIn("Honolulu", prompt)
+        self.assertIn("Waikiki Nightlife", prompt)
 
 
 if __name__ == "__main__":
