@@ -7,6 +7,11 @@ from src.drifter_glasses_assistant.system import DrifterGlassesAssistant
 
 
 class TestDrifterGlassesAssistant(unittest.TestCase):
+    def test_default_config_targets_honolulu(self):
+        config = DrifterAssistantConfig()
+        self.assertEqual(config.city_name, "Honolulu, Hawaii")
+        self.assertIn("Honolulu", config.default_objective)
+
     def test_mode_switch_command(self):
         assistant = DrifterGlassesAssistant(
             config=DrifterAssistantConfig(enable_logging=False)
@@ -28,7 +33,7 @@ class TestDrifterGlassesAssistant(unittest.TestCase):
             config=DrifterAssistantConfig(enable_logging=False)
         )
         response = assistant.handle_voice_command("navigate to harbor checkpoint")
-        self.assertIn("harbor checkpoint", response.hud.lower())
+        self.assertIn("honolulu harbor", response.hud.lower())
         self.assertIn("plot_route", response.actions)
 
     def test_prompt_contains_guardrails(self):
@@ -36,6 +41,7 @@ class TestDrifterGlassesAssistant(unittest.TestCase):
         prompt = build_system_prompt(config, OperationMode.RECON)
         self.assertIn("Do not provide illegal", prompt)
         self.assertIn(config.codename, prompt)
+        self.assertIn("Honolulu", prompt)
 
 
 if __name__ == "__main__":

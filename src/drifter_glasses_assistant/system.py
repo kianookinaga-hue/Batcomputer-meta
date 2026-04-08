@@ -31,7 +31,7 @@ class DrifterGlassesAssistant:
         self.data_logger = data_logger if self.config.enable_logging else None
         self.session_id: Optional[str] = None
         self.driver_id: str = self.config.operator_name
-        self.objective: str = "Maintain perimeter awareness."
+        self.objective: str = self.config.default_objective
 
     def start_operation(self, session_id: Optional[str] = None) -> str:
         """Start a glasses operation session."""
@@ -158,7 +158,8 @@ class DrifterGlassesAssistant:
         destination = "safe waypoint"
         if "to " in lowered_command:
             destination = lowered_command.split("to ", 1)[1].strip() or destination
-        eta = "6m"
+        destination = self._normalize_destination(destination)
+        eta = self.config.local_waypoint_eta.get(destination, "11m")
         response = AssistantResponse(
             spoken=f"Route locked to {destination}. Estimated arrival {eta}.",
             hud=f"[NAV] {destination} | ETA {eta}",
@@ -172,11 +173,16 @@ class DrifterGlassesAssistant:
         response = AssistantResponse(
             spoken=(
                 f"Mode {self.mode.value}. Session "
-                f"{self.session_id or 'not started'}. Systems nominal."
+                f"{self.session_id or 'not started'}. "
+                f"Monitoring {self.config.city_name} corridors."
             ),
             hud=f"[STATUS] mode={self.mode.value} | session={self.session_id or 'idle'}",
             actions=["status_report"],
-            context={"mode": self.mode.value, "session_id": self.session_id},
+            context={
+                "mode": self.mode.value,
+                "session_id": self.session_id,
+                "city": self.config.city_name,
+            },
         )
         self._log("status", {"mode": self.mode.value, "session_id": self.session_id})
         return response
@@ -205,6 +211,14 @@ class DrifterGlassesAssistant:
             if term in lowered_command:
                 return term
         return None
+
+    def _normalize_destination(self, destination: str) -> str:
+        lowered = destination.lower()
+        aliases = self.config.local_waypoint_aliases
+        for key, value in aliases.items():
+            if key in lowered:
+                return value
+        return destination
 
     def _mock_threat_assessment(self) -> str:
         # Lightweight deterministic mock for a no-dependency baseline.

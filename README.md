@@ -1,6 +1,6 @@
-# Drifter Glasses Assistant System
+# Honolulu Drifter Glasses Assistant System
 
-This repository now includes a themed, operations-focused assistant system for Meta Ray-Ban style smart glasses workflows.
+This repository now includes a Honolulu-tailored, operations-focused assistant system for Meta Ray-Ban style smart glasses workflows.
 
 ## What this adds
 
@@ -20,6 +20,7 @@ This repository now includes a themed, operations-focused assistant system for M
 - **LLM system prompt builder** for connecting an external model backend.
 - **Console simulation** to run the system locally.
 - **Integration** with the existing `DataLogger`.
+- **Honolulu context defaults** including local waypoint aliases and ETA profiles.
 
 ## Files
 
@@ -35,18 +36,38 @@ This repository now includes a themed, operations-focused assistant system for M
 From repo root:
 
 ```bash
-python -m src.drifter_glasses_assistant.cli
+python3 -m src.drifter_glasses_assistant.cli
 ```
 
 Example commands:
 
 - `status`
-- `scan sector`
-- `navigate to harbor checkpoint`
+- `scan waikiki sector`
+- `navigate to ala moana`
+- `navigate to hnl`
 - `mode stealth`
-- `objective watch rooftop access`
+- `objective monitor Waikiki Beach corridor`
 - `prompt` (prints current model system prompt)
 - `exit`
+
+## Honolulu defaults
+
+`DrifterAssistantConfig` is preconfigured with:
+- city: `Honolulu, Hawaii`
+- operator: `Drifter Oahu`
+- default objective focused on Honolulu corridor safety
+- waypoint normalization for aliases like:
+  - `waikiki`
+  - `ala moana`
+  - `kakaako`
+  - `downtown`
+  - `chinatown`
+  - `harbor` / `honolulu harbor`
+  - `airport` / `hnl`
+  - `diamond head`
+  - `manoa`
+
+This means commands like `navigate to harbor checkpoint` will normalize to `Honolulu Harbor` and return a local ETA.
 
 ## Integrating with a model backend
 
